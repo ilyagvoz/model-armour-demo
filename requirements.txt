@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+google-cloud-modelarmor
+google-cloud-dlp
+python-dotenv

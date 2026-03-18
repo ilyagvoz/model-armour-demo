@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Model Armor — AI Safety Shield</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            mono: ['JetBrains Mono', 'monospace'],
+            display: ['Space Grotesk', 'sans-serif'],
+          },
+          colors: {
+            surface: {
+              950: '#06080d',
+              900: '#0c1017',
+              800: '#131822',
+              700: '#1a202e',
+              600: '#252d3e',
+            },
+            safe: {
+              DEFAULT: '#00e5a0',
+              dim: '#00e5a033',
+              glow: '#00e5a066',
+            },
+            blocked: {
+              DEFAULT: '#ff3b5c',
+              dim: '#ff3b5c33',
+              glow: '#ff3b5c66',
+            },
+            warn: {
+              DEFAULT: '#ffb020',
+              dim: '#ffb02033',
+              glow: '#ffb02066',
+            },
+            accent: {
+              DEFAULT: '#6e7fff',
+              dim: '#6e7fff22',
+            },
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background: #06080d;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    /* Subtle grid background */
+    .bg-grid {
+      background-image:
+        linear-gradient(rgba(110, 127, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(110, 127, 255, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    /* Scan line animation */
+    @keyframes scan {
+      0% { transform: translateY(-100%); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translateY(100%); opacity: 0; }
+    }
+    .scan-line {
+      animation: scan 1.5s ease-in-out infinite;
+    }
+
+    /* Pulse glow for blocked */
+    @keyframes pulse-blocked {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255, 59, 92, 0); }
+      50% { box-shadow: 0 0 20px 4px rgba(255, 59, 92, 0.3); }
+    }
+    .pulse-blocked { animation: pulse-blocked 2s ease-in-out infinite; }
+
+    @keyframes pulse-safe {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(0, 229, 160, 0); }
+      50% { box-shadow: 0 0 20px 4px rgba(0, 229, 160, 0.2); }
+    }
+    .pulse-safe { animation: pulse-safe 2s ease-in-out infinite; }
+
+    /* Stagger in */
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .stagger-in {
+      animation: slideUp 0.4s ease-out forwards;
+      opacity: 0;
+    }
+
+    /* Typing cursor */
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #252d3e; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3a4560; }
+
+    /* JSON syntax */
+    .json-key { color: #6e7fff; }
+    .json-string { color: #00e5a0; }
+    .json-number { color: #ffb020; }
+    .json-bool { color: #ff3b5c; }
+    .json-null { color: #666; }
+
+    /* Scenario card hover */
+    .scenario-card {
+      transition: all 0.2s ease;
+    }
+    .scenario-card:hover {
+      transform: translateY(-2px);
+    }
+    .scenario-card.active {
+      border-color: #6e7fff !important;
+      background: rgba(110, 127, 255, 0.08) !important;
+    }
+
+    /* Filter result card */
+    .filter-card {
+      transition: all 0.3s ease;
+    }
+  </style>
+</head>
+<body class="bg-grid min-h-screen text-gray-300 antialiased" x-data="app()" x-init="init()">
+
+  <!-- Top bar -->
+  <header class="border-b border-surface-600/50 backdrop-blur-sm bg-surface-950/80 sticky top-0 z-50">
+    <div class="max-w-[1600px] mx-auto px-6 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-accent/10 border border-accent/30 flex items-center justify-center">
+          <i data-lucide="shield-check" class="w-4 h-4 text-accent"></i>
+        </div>
+        <div>
+          <h1 class="font-display font-bold text-white text-sm tracking-tight">Model Armor</h1>
+          <p class="text-[10px] text-gray-500 font-mono tracking-widest uppercase">GCP AI Safety Shield</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 text-xs font-mono">
+          <span class="w-1.5 h-1.5 rounded-full" :class="templateReady ? 'bg-safe' : 'bg-blocked'"></span>
+          <span class="text-gray-500" x-text="templateReady ? 'Template Active' : 'Template Not Ready'"></span>
+        </div>
+        <button
+          @click="showConfig = !showConfig"
+          class="p-1.5 rounded-md hover:bg-surface-700 transition-colors"
+          :class="showConfig ? 'bg-surface-700 text-accent' : 'text-gray-500'"
+        >
+          <i data-lucide="settings" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1600px] mx-auto px-6 py-6">
+
+    <!-- Setup banner -->
+    <template x-if="!templateReady && !setupLoading">
+      <div class="mb-6 p-4 rounded-xl border border-warn/30 bg-warn/5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <i data-lucide="alert-circle" class="w-5 h-5 text-warn"></i>
+          <p class="text-sm text-warn">Template not configured. Create one with all filters enabled to start scanning.</p>
+        </div>
+        <button @click="setupTemplate()" class="px-4 py-1.5 rounded-lg bg-warn text-surface-950 text-sm font-semibold hover:brightness-110 transition">
+          Setup Template
+        </button>
+      </div>
+    </template>
+
+    <template x-if="setupLoading">
+      <div class="mb-6 p-4 rounded-xl border border-accent/30 bg-accent/5 flex items-center gap-3">
+        <div class="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-sm text-accent">Setting up template...</p>
+      </div>
+    </template>
+
+    <!-- Config panel -->
+    <template x-if="showConfig">
+      <div class="mb-6 rounded-xl border border-surface-600/50 bg-surface-900/80 overflow-hidden stagger-in">
+        <div class="px-5 py-3 border-b border-surface-600/50 flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-white font-display">Template Configuration</h2>
+          <span class="text-[10px] font-mono text-gray-500 tracking-wider" x-text="templateName"></span>
+        </div>
+        <div class="p-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="space-y-2">
+            <label class="text-xs font-mono text-gray-500 uppercase tracking-wider">PI & Jailbreak</label>
+            <select x-model="config.pi_confidence"
+              class="w-full bg-surface-800 border border-surface-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent">
+              <option value="LOW_AND_ABOVE">Low & Above</option>
+              <option value="MEDIUM_AND_ABOVE">Medium & Above</option>
+              <option value="HIGH">High Only</option>
+            </select>
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-mono text-gray-500 uppercase tracking-wider">RAI Filters</label>
+            <select x-model="config.rai_confidence"
+              class="w-full bg-surface-800 border border-surface-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent">
+              <option value="LOW_AND_ABOVE">Low & Above</option>
+              <option value="MEDIUM_AND_ABOVE">Medium & Above</option>
+              <option value="HIGH">High Only</option>
+            </select>
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-mono text-gray-500 uppercase tracking-wider">Malicious URI</label>
+            <label class="flex items-center gap-2 mt-2.5 cursor-pointer">
+              <input type="checkbox" x-model="config.malicious_uri_enabled"
+                class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-accent focus:ring-accent/50">
+              <span class="text-sm text-gray-300">Enabled</span>
+            </label>
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-mono text-gray-500 uppercase tracking-wider">Sensitive Data</label>
+            <label class="flex items-center gap-2 mt-2.5 cursor-pointer">
+              <input type="checkbox" x-model="config.sdp_enabled"
+                class="w-4 h-4 rounded border-surface-600 bg-surface-800 text-accent focus:ring-accent/50">
+              <span class="text-sm text-gray-300">Enabled</span>
+            </label>
+          </div>
+        </div>
+        <div class="px-5 py-3 border-t border-surface-600/50 flex justify-end">
+          <button @click="applyConfig()"
+            class="px-4 py-1.5 rounded-lg bg-accent text-white text-sm font-semibold hover:brightness-110 transition"
+            :disabled="configApplying">
+            <span x-show="!configApplying">Apply & Recreate Template</span>
+            <span x-show="configApplying" class="flex items-center gap-2">
+              <span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+              Applying...
+            </span>
+          </button>
+        </div>
+      </div>
+    </template>
+
+    <!-- Main layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Left: Input Panel -->
+      <div class="space-y-5">
+        <!-- Scenario cards -->
+        <div>
+          <h2 class="text-xs font-mono text-gray-500 uppercase tracking-wider mb-3">Attack Scenarios</h2>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <template x-for="scenario in scenarios" :key="scenario.id">
+              <button
+                @click="selectScenario(scenario)"
+                class="scenario-card p-3 rounded-xl border text-left"
+                :class="activeScenario?.id === scenario.id
+                  ? 'active border-accent/40 bg-accent/5'
+                  : 'border-surface-600/50 bg-surface-900/60 hover:bg-surface-800/80 hover:border-surface-600'"
+              >
+                <div class="flex items-center gap-2 mb-1.5">
+                  <i :data-lucide="scenario.icon" class="w-3.5 h-3.5"
+                     :class="scenario.expected_filters.length === 0 ? 'text-safe' : 'text-blocked'"></i>
+                  <span class="text-xs font-semibold text-white truncate" x-text="scenario.name"></span>
+                </div>
+                <p class="text-[11px] text-gray-500 leading-relaxed line-clamp-2" x-text="scenario.description"></p>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Text area -->
+        <div class="relative">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-xs font-mono text-gray-500 uppercase tracking-wider">Input Text</h2>
+            <div class="flex items-center gap-1 bg-surface-800 rounded-lg p-0.5">
+              <button
+                @click="mode = 'prompt'"
+                class="px-3 py-1 rounded-md text-xs font-medium transition-all"
+                :class="mode === 'prompt' ? 'bg-accent text-white' : 'text-gray-500 hover:text-gray-300'"
+              >
+                <span class="flex items-center gap-1.5">
+                  <i data-lucide="arrow-up-circle" class="w-3 h-3"></i>
+                  Sanitize Prompt
+                </span>
+              </button>
+              <button
+                @click="mode = 'response'"
+                class="px-3 py-1 rounded-md text-xs font-medium transition-all"
+                :class="mode === 'response' ? 'bg-accent text-white' : 'text-gray-500 hover:text-gray-300'"
+              >
+                <span class="flex items-center gap-1.5">
+                  <i data-lucide="arrow-down-circle" class="w-3 h-3"></i>
+                  Sanitize Response
+                </span>
+              </button>
+            </div>
+          </div>
+          <p class="text-[11px] text-gray-500 mb-2 transition-all"
+             x-text="mode === 'prompt'
+               ? 'Screen user input before it reaches your LLM'
+               : 'Screen LLM output before it reaches the end user'"></p>
+          <div class="relative">
+            <textarea
+              x-model="inputText"
+              rows="8"
+              placeholder="Type a prompt to scan, or select a scenario above..."
+              class="w-full bg-surface-900 border border-surface-600/50 rounded-xl px-4 py-3 text-sm font-mono text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 resize-none"
+            ></textarea>
+            <!-- Scanning overlay -->
+            <template x-if="scanning">
+              <div class="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                <div class="absolute inset-0 bg-accent/5"></div>
+                <div class="scan-line absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-accent to-transparent"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Scan button -->
+        <button
+          @click="scan()"
+          :disabled="!inputText.trim() || scanning || !templateReady"
+          class="w-full py-3 rounded-xl font-display font-semibold text-sm transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed"
+          :class="scanning
+            ? 'bg-accent/20 text-accent border border-accent/30'
+            : 'bg-accent text-white hover:brightness-110 hover:shadow-lg hover:shadow-accent/20'"
+        >
+          <template x-if="!scanning">
+            <span class="flex items-center gap-2">
+              <i data-lucide="scan" class="w-4 h-4"></i>
+              Scan with Model Armor
+            </span>
+          </template>
+          <template x-if="scanning">
+            <span class="flex items-center gap-2">
+              <span class="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin"></span>
+              Analyzing...
+            </span>
+          </template>
+        </button>
+
+        <!-- Scenario explanation -->
+        <template x-if="activeScenario">
+          <div class="p-4 rounded-xl border border-surface-600/30 bg-surface-900/40 stagger-in">
+            <div class="flex items-start gap-3">
+              <i data-lucide="info" class="w-4 h-4 text-accent mt-0.5 shrink-0"></i>
+              <div>
+                <h3 class="text-xs font-semibold text-white mb-1" x-text="activeScenario.name + ' — How it works'"></h3>
+                <p class="text-xs text-gray-400 leading-relaxed" x-text="activeScenario.explanation"></p>
+                <div class="mt-2 flex flex-wrap gap-1.5" x-show="activeScenario.expected_filters.length > 0">
+                  <span class="text-[10px] font-mono text-gray-500">Expected filters:</span>
+                  <template x-for="f in activeScenario.expected_filters" :key="f">
+                    <span class="px-1.5 py-0.5 rounded bg-blocked/10 text-blocked text-[10px] font-mono" x-text="f"></span>
+                  </template>
+                </div>
+                <div class="mt-2" x-show="activeScenario.expected_filters.length === 0">
+                  <span class="px-1.5 py-0.5 rounded bg-safe/10 text-safe text-[10px] font-mono">All filters should pass</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Right: Results Panel -->
+      <div class="space-y-5">
+        <!-- Verdict banner -->
+        <template x-if="result">
+          <div class="stagger-in">
+            <div class="rounded-xl border p-5 flex items-center justify-between"
+                 :class="result.overall_match === 'MATCH_FOUND'
+                   ? 'border-blocked/30 bg-blocked/5 pulse-blocked'
+                   : 'border-safe/30 bg-safe/5 pulse-safe'">
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center"
+                     :class="result.overall_match === 'MATCH_FOUND' ? 'bg-blocked/15' : 'bg-safe/15'">
+                  <i :data-lucide="result.overall_match === 'MATCH_FOUND' ? 'shield-x' : 'shield-check'"
+                     class="w-6 h-6"
+                     :class="result.overall_match === 'MATCH_FOUND' ? 'text-blocked' : 'text-safe'"></i>
+                </div>
+                <div>
+                  <h2 class="text-xl font-display font-bold"
+                      :class="result.overall_match === 'MATCH_FOUND' ? 'text-blocked' : 'text-safe'"
+                      x-text="result.overall_match === 'MATCH_FOUND' ? 'BLOCKED' : 'PASS'"></h2>
+                  <p class="text-xs text-gray-500 font-mono"
+                     x-text="result.mode === 'prompt' ? 'User prompt sanitization' : 'Model response sanitization'"></p>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="text-lg font-mono font-bold text-gray-400" x-text="result.elapsed_ms + 'ms'"></div>
+                <div class="text-[10px] font-mono text-gray-600 uppercase tracking-wider">Response Time</div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Empty state -->
+        <template x-if="!result && !scanning">
+          <div class="rounded-xl border border-surface-600/30 bg-surface-900/30 p-12 flex flex-col items-center justify-center text-center">
+            <div class="w-16 h-16 rounded-2xl bg-surface-800 border border-surface-600/50 flex items-center justify-center mb-4">
+              <i data-lucide="scan" class="w-8 h-8 text-gray-600"></i>
+            </div>
+            <h3 class="text-sm font-display font-semibold text-gray-500 mb-1">No scan results yet</h3>
+            <p class="text-xs text-gray-600 max-w-xs">Select a scenario or type your own text, then click Scan to see Model Armor's analysis</p>
+          </div>
+        </template>
+
+        <!-- Filter result cards -->
+        <template x-if="result">
+          <div class="space-y-3 stagger-in" style="animation-delay: 0.15s">
+            <h2 class="text-xs font-mono text-gray-500 uppercase tracking-wider">Filter Results</h2>
+            <div class="grid gap-2">
+
+              <!-- PI & Jailbreak -->
+              <div class="filter-card rounded-xl border p-4"
+                   :class="result.filters.pi_and_jailbreak.matched
+                     ? 'border-blocked/30 bg-blocked/5'
+                     : 'border-surface-600/30 bg-surface-900/40'">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                         :class="result.filters.pi_and_jailbreak.matched ? 'bg-blocked/15' : 'bg-surface-700'">
+                      <i data-lucide="shield-alert" class="w-4 h-4"
+                         :class="result.filters.pi_and_jailbreak.matched ? 'text-blocked' : 'text-gray-500'"></i>
+                    </div>
+                    <div>
+                      <h3 class="text-sm font-semibold text-white">Prompt Injection & Jailbreak</h3>
+                      <p class="text-[11px] text-gray-500 font-mono">Detects attempts to override system instructions</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <template x-if="result.filters.pi_and_jailbreak.confidence_level">
+                      <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-surface-700 text-gray-400"
+                            x-text="result.filters.pi_and_jailbreak.confidence_level"></span>
+                    </template>
+                    <span class="px-2.5 py-1 rounded-lg text-xs font-bold"
+                          :class="result.filters.pi_and_jailbreak.matched
+                            ? 'bg-blocked/15 text-blocked'
+                            : 'bg-safe/10 text-safe'"
+                          x-text="result.filters.pi_and_jailbreak.matched ? 'MATCH' : 'CLEAR'"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- RAI -->
+              <div class="filter-card rounded-xl border p-4"
+                   :class="result.filters.rai.matched
+                     ? 'border-blocked/30 bg-blocked/5'
+                     : 'border-surface-600/30 bg-surface-900/40'">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                         :class="result.filters.rai.matched ? 'bg-blocked/15' : 'bg-surface-700'">
+                      <i data-lucide="brain" class="w-4 h-4"
+                         :class="result.filters.rai.matched ? 'text-blocked' : 'text-gray-500'"></i>
+                    </div>
+                    <div>
+                      <h3 class="text-sm font-semibold text-white">Responsible AI</h3>
+                      <p class="text-[11px] text-gray-500 font-mono">Hate speech, harassment, sexual, dangerous content</p>
+                    </div>
+                  </div>
+                  <span class="px-2.5 py-1 rounded-lg text-xs font-bold"
+                        :class="result.filters.rai.matched
+                          ? 'bg-blocked/15 text-blocked'
+                          : 'bg-safe/10 text-safe'"
+                        x-text="result.filters.rai.matched ? 'MATCH' : 'CLEAR'"></span>
+                </div>
+                <!-- RAI sub-categories -->
+                <template x-if="Object.keys(result.filters.rai.categories || {}).length > 0">
+                  <div class="ml-11 mt-2 grid grid-cols-2 gap-1.5">
+                    <template x-for="(cat, catName) in result.filters.rai.categories" :key="catName">
+                      <div class="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface-800/60">
+                        <span class="text-[11px] text-gray-400" x-text="catName.replace('_', ' ').toLowerCase()"></span>
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-[10px] font-mono text-gray-600" x-text="cat.confidence_level"></span>
+                          <span class="w-1.5 h-1.5 rounded-full" :class="cat.matched ? 'bg-blocked' : 'bg-safe/50'"></span>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+
+              <!-- SDP -->
+              <div class="filter-card rounded-xl border p-4"
+                   :class="result.filters.sdp?.inspect?.matched
+                     ? 'border-blocked/30 bg-blocked/5'
+                     : 'border-surface-600/30 bg-surface-900/40'">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                         :class="result.filters.sdp?.inspect?.matched ? 'bg-blocked/15' : 'bg-surface-700'">
+                      <i data-lucide="lock" class="w-4 h-4"
+                         :class="result.filters.sdp?.inspect?.matched ? 'text-blocked' : 'text-gray-500'"></i>
+                    </div>
+                    <div>
+                      <h3 class="text-sm font-semibold text-white">Sensitive Data Protection</h3>
+                      <p class="text-[11px] text-gray-500 font-mono">PII, credentials, API keys, financial data</p>
+                    </div>
+                  </div>
+                  <span class="px-2.5 py-1 rounded-lg text-xs font-bold"
+                        :class="result.filters.sdp?.inspect?.matched
+                          ? 'bg-blocked/15 text-blocked'
+                          : 'bg-safe/10 text-safe'"
+                        x-text="result.filters.sdp?.inspect?.matched ? 'MATCH' : 'CLEAR'"></span>
+                </div>
+                <!-- SDP findings -->
+                <div x-show="result?.filters?.sdp?.inspect?.findings?.length > 0" class="ml-11 mt-2 flex flex-wrap gap-1.5">
+                  <template x-for="(finding, idx) in (result?.filters?.sdp?.inspect?.findings || [])" :key="idx">
+                    <span class="px-2 py-0.5 rounded bg-blocked/10 text-blocked text-[10px] font-mono"
+                          x-text="finding.info_type + (finding.likelihood ? ' (' + finding.likelihood + ')' : '')"></span>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Malicious URI -->
+              <div class="filter-card rounded-xl border p-4"
+                   :class="result.filters.malicious_uri.matched
+                     ? 'border-blocked/30 bg-blocked/5'
+                     : 'border-surface-600/30 bg-surface-900/40'">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                         :class="result.filters.malicious_uri.matched ? 'bg-blocked/15' : 'bg-surface-700'">
+                      <i data-lucide="link-2-off" class="w-4 h-4"
+                         :class="result.filters.malicious_uri.matched ? 'text-blocked' : 'text-gray-500'"></i>
+                    </div>
+                    <div>
+                      <h3 class="text-sm font-semibold text-white">Malicious URLs</h3>
+                      <p class="text-[11px] text-gray-500 font-mono">Phishing, malware, social engineering links</p>
+                    </div>
+                  </div>
+                  <span class="px-2.5 py-1 rounded-lg text-xs font-bold"
+                        :class="result.filters.malicious_uri.matched
+                          ? 'bg-blocked/15 text-blocked'
+                          : 'bg-safe/10 text-safe'"
+                        x-text="result.filters.malicious_uri.matched ? 'MATCH' : 'CLEAR'"></span>
+                </div>
+                <div x-show="result?.filters?.malicious_uri?.matched_uris?.length > 0" class="ml-11 mt-2 flex flex-wrap gap-1.5">
+                  <template x-for="(uri, idx) in (result?.filters?.malicious_uri?.matched_uris || [])" :key="idx">
+                    <span class="px-2 py-0.5 rounded bg-blocked/10 text-blocked text-[10px] font-mono truncate max-w-xs"
+                          x-text="uri"></span>
+                  </template>
+                </div>
+              </div>
+
+              <!-- CSAM -->
+              <div class="filter-card rounded-xl border p-4"
+                   :class="result.filters.csam?.matched
+                     ? 'border-blocked/30 bg-blocked/5'
+                     : 'border-surface-600/30 bg-surface-900/40'">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                         :class="result.filters.csam?.matched ? 'bg-blocked/15' : 'bg-surface-700'">
+                      <i data-lucide="alert-octagon" class="w-4 h-4"
+                         :class="result.filters.csam?.matched ? 'text-blocked' : 'text-gray-500'"></i>
+                    </div>
+                    <div>
+                      <h3 class="text-sm font-semibold text-white">CSAM Detection</h3>
+                      <p class="text-[11px] text-gray-500 font-mono">Child safety content filtering</p>
+                    </div>
+                  </div>
+                  <span class="px-2.5 py-1 rounded-lg text-xs font-bold"
+                        :class="result.filters.csam?.matched
+                          ? 'bg-blocked/15 text-blocked'
+                          : 'bg-safe/10 text-safe'"
+                        x-text="result.filters.csam?.matched ? 'MATCH' : 'CLEAR'"></span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </template>
+
+        <!-- Raw JSON toggle -->
+        <template x-if="result">
+          <div class="stagger-in" style="animation-delay: 0.3s">
+            <button @click="showRawJson = !showRawJson"
+              class="flex items-center gap-2 text-xs font-mono text-gray-500 hover:text-gray-300 transition mb-2">
+              <i :data-lucide="showRawJson ? 'chevron-down' : 'chevron-right'" class="w-3 h-3"></i>
+              Raw API Response
+            </button>
+            <template x-if="showRawJson">
+              <div class="rounded-xl border border-surface-600/30 bg-surface-950 p-4 overflow-auto max-h-80">
+                <pre class="text-[11px] font-mono leading-relaxed" x-html="syntaxHighlight(JSON.stringify(result, null, 2))"></pre>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- Error display -->
+        <template x-if="error">
+          <div class="rounded-xl border border-blocked/30 bg-blocked/5 p-4 stagger-in">
+            <div class="flex items-start gap-3">
+              <i data-lucide="x-circle" class="w-4 h-4 text-blocked mt-0.5 shrink-0"></i>
+              <div>
+                <h3 class="text-sm font-semibold text-blocked mb-1">Error</h3>
+                <p class="text-xs text-gray-400 font-mono" x-text="error"></p>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function app() {
+      return {
+        scenarios: [],
+        activeScenario: null,
+        inputText: '',
+        mode: 'prompt',
+        scanning: false,
+        result: null,
+        error: null,
+        templateReady: false,
+        templateName: '',
+        showConfig: false,
+        showRawJson: false,
+        setupLoading: false,
+        configApplying: false,
+        config: {
+          pi_confidence: 'MEDIUM_AND_ABOVE',
+          rai_confidence: 'MEDIUM_AND_ABOVE',
+          malicious_uri_enabled: true,
+          sdp_enabled: true,
+          pi_enabled: true,
+        },
+
+        async init() {
+          lucide.createIcons();
+          await this.loadScenarios();
+          await this.checkTemplate();
+        },
+
+        async loadScenarios() {
+          try {
+            const res = await fetch('/api/scenarios');
+            this.scenarios = await res.json();
+          } catch (e) {
+            console.error('Failed to load scenarios:', e);
+          }
+          this.$nextTick(() => lucide.createIcons());
+        },
+
+        async checkTemplate() {
+          try {
+            const res = await fetch('/api/template');
+            if (res.ok) {
+              const data = await res.json();
+              this.templateReady = true;
+              this.templateName = data.name || '';
+            } else {
+              this.templateReady = false;
+            }
+          } catch {
+            this.templateReady = false;
+          }
+        },
+
+        async setupTemplate() {
+          this.setupLoading = true;
+          this.error = null;
+          try {
+            const res = await fetch('/api/setup', { method: 'POST' });
+            const data = await res.json();
+            if (res.ok) {
+              this.templateReady = true;
+              this.templateName = data.template?.name || '';
+            } else {
+              this.error = data.detail || 'Failed to setup template';
+            }
+          } catch (e) {
+            this.error = e.message;
+          } finally {
+            this.setupLoading = false;
+            this.$nextTick(() => lucide.createIcons());
+          }
+        },
+
+        selectScenario(scenario) {
+          this.activeScenario = scenario;
+          this.inputText = scenario.prompt;
+          this.result = null;
+          this.error = null;
+          this.$nextTick(() => lucide.createIcons());
+        },
+
+        async scan() {
+          if (!this.inputText.trim() || this.scanning) return;
+          this.scanning = true;
+          this.result = null;
+          this.error = null;
+
+          const endpoint = this.mode === 'prompt'
+            ? '/api/sanitize-prompt'
+            : '/api/sanitize-response';
+
+          try {
+            const res = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: this.inputText }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+              this.result = data;
+            } else {
+              this.error = data.detail || 'Sanitization failed';
+            }
+          } catch (e) {
+            this.error = e.message;
+          } finally {
+            this.scanning = false;
+            this.$nextTick(() => lucide.createIcons());
+          }
+        },
+
+        async applyConfig() {
+          this.configApplying = true;
+          this.error = null;
+          try {
+            const res = await fetch('/api/setup-custom', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(this.config),
+            });
+            const data = await res.json();
+            if (res.ok) {
+              this.templateReady = true;
+              this.templateName = data.template?.name || '';
+              this.showConfig = false;
+            } else {
+              this.error = data.detail || 'Failed to apply configuration';
+            }
+          } catch (e) {
+            this.error = e.message;
+          } finally {
+            this.configApplying = false;
+          }
+        },
+
+        syntaxHighlight(json) {
+          return json.replace(/("(\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(\.\d+)?([eE][+-]?\d+)?)/g,
+            (match) => {
+              let cls = 'json-number';
+              if (/^"/.test(match)) {
+                cls = /:$/.test(match) ? 'json-key' : 'json-string';
+              } else if (/true|false/.test(match)) {
+                cls = 'json-bool';
+              } else if (/null/.test(match)) {
+                cls = 'json-null';
+              }
+              return `<span class="${cls}">${match}</span>`;
+            });
+        },
+      };
+    }
+  </script>
+</body>
+</html>
