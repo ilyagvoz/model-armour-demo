@@ -1,6 +1,6 @@
 # Model Armor Interactive Demo
 
-Interactive web app demonstrating [Google Cloud Model Armor](https://cloud.google.com/model-armor/docs/overview) — a GCP service that screens LLM prompts and responses for safety risks including prompt injection, jailbreaks, PII leakage, malicious URLs, and responsible AI violations.
+Interactive web app demonstrating [Google Cloud Model Armor](https://cloud.google.com/security/products/model-armor) — a GCP service that screens LLM prompts and responses for safety risks including prompt injection, jailbreaks, PII leakage, malicious URLs, and responsible AI violations.
 
 ## Prerequisites
 
