@@ -172,7 +172,7 @@
   <main class="max-w-[1600px] mx-auto px-6 py-6">
 
     <!-- Setup banner -->
-    <template x-if="!templateReady && !setupLoading">
+    <template x-if="templateChecked && !templateReady && !setupLoading">
       <div class="mb-6 p-4 rounded-xl border border-warn/30 bg-warn/5 flex items-center justify-between">
         <div class="flex items-center gap-3">
           <i data-lucide="alert-circle" class="w-5 h-5 text-warn"></i>
@@ -624,6 +624,7 @@
         result: null,
         error: null,
         templateReady: false,
+        templateChecked: false,
         templateName: '',
         get templateRegion() {
           // Extract region from resource name: projects/.../locations/REGION/templates/...
@@ -671,6 +672,7 @@
           } catch {
             this.templateReady = false;
           }
+          this.templateChecked = true;
         },
 
         async setupTemplate() {
