@@ -31,7 +31,7 @@ cp .env.example .env
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `GCP_PROJECT_ID` | Your GCP project ID | — |
-| `GCP_REGION` | Region where Model Armor is enabled | `us-central1` |
+| `GCP_REGION` | Region where Model Armor is enabled | `australia-southeast2` |
 | `MODEL_ARMOR_TEMPLATE_ID` | Template name for the demo | `demo-template` |
 | `PORT` | Server port | `5610` |
 | `LLM_REGION` | Region for Gemini API (Full Pipeline mode) | `us-central1` |
