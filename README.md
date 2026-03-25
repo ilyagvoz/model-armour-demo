@@ -1,6 +1,9 @@
-# Model Armor Interactive Demo
+# Model Armor + Sensitive Data Protection — Interactive Demo
 
-Interactive web app demonstrating [Google Cloud Model Armor](https://cloud.google.com/security/products/model-armor) — a GCP service that screens LLM prompts and responses for safety risks including prompt injection, jailbreaks, PII leakage, malicious URLs, and responsible AI violations.
+Interactive web app demonstrating two complementary GCP AI safety services:
+
+- **[Model Armor](https://cloud.google.com/security/products/model-armor)** — screens LLM prompts and responses for safety risks including prompt injection, jailbreaks, malicious URLs, and responsible AI violations
+- **[Sensitive Data Protection](https://cloud.google.com/sensitive-data-protection)** — detects and de-identifies PII (names, emails, TFNs, Medicare numbers, credentials) before prompts reach your LLM, using the `deidentifyContent` API to replace sensitive values with type tokens like `[PERSON_NAME]`
 
 ![De-identification scenario showing Sensitive Data Protection replacing names, emails, TFN and Medicare numbers with placeholder tokens before the prompt reaches Gemini](docs/demo-deidentify.png)
 
