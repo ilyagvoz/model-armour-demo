@@ -58,7 +58,7 @@ SCENARIOS = [
         "explanation": (
             "This prompt contains Australian Tax File Numbers (TFN), Medicare numbers, "
             "credit card details, and API keys that should never be sent to an LLM. "
-            "Model Armor's Sensitive Data Protection (SDP) filter uses Cloud DLP to detect "
+            "Model Armor's Sensitive Data Protection (SDP) filter uses Google's Sensitive Data Protection API to detect "
             "PII and credentials, preventing accidental data leakage to third-party model "
             "providers. This is critical for compliance with the Australian Privacy Act "
             "and PCI-DSS."
@@ -100,6 +100,31 @@ SCENARIOS = [
             "content across four categories: hate speech, harassment, sexually explicit material, "
             "and dangerous content. This prevents your AI application from being weaponized to "
             "produce harmful content."
+        ),
+    },
+    {
+        "id": "deidentify",
+        "name": "De-identification",
+        "icon": "eraser",
+        "mode": "deidentify",
+        "description": "Replaces names and emails with tokens before sending to Gemini",
+        "prompt": (
+            "Please draft a follow-up email on my behalf.\n\n"
+            "Context: I met with Sarah Mitchell (sarah.mitchell@acmecorp.com) and "
+            "James O'Brien (james.obrien@globalfinance.io) yesterday to discuss the Q3 contract renewal. "
+            "Sarah mentioned that her manager, David Chen, would need to approve the final terms.\n\n"
+            "Customer records attached for reference:\n"
+            "- Jane Citizen | TFN: 123 456 782 | Medicare: 2123 45670 1\n"
+            "- Robert Nguyen | TFN: 876 543 210 | Medicare: 4321 98762 1\n\n"
+            "Please summarise the key points and suggest next steps."
+        ),
+        "expected_filters": [],
+        "explanation": (
+            "De-identification uses Sensitive Data Protection's deidentifyContent API to replace PII inline "
+            "before the prompt ever reaches Gemini. Unlike Model Armor's SDP filter — which blocks "
+            "the entire request — de-identification transforms the text, swapping person names and "
+            "email addresses with placeholder tokens like [PERSON_NAME] and [EMAIL_ADDRESS]. "
+            "The prompt remains useful while individual privacy is protected."
         ),
     },
     {

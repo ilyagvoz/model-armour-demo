@@ -46,7 +46,7 @@ DLP_INFO_TYPES = [
 
 
 def setup_dlp_template():
-    """Create the Cloud DLP inspect template for PII detection."""
+    """Create the Sensitive Data Protection inspect template for PII detection."""
     import google.cloud.dlp_v2 as dlp
 
     client = dlp.DlpServiceClient()

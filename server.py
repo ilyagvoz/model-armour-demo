@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
 from google.api_core import exceptions as gcp_exceptions
+from google.cloud import dlp_v2
 from google.cloud import modelarmor_v1 as ma
 from pydantic import BaseModel
 
@@ -206,6 +207,14 @@ class SanitizeRequest(BaseModel):
     text: str
 
 
+DEFAULT_DEIDENTIFY_INFO_TYPES = ["PERSON_NAME", "EMAIL_ADDRESS"]
+
+
+class DeidentifyRequest(BaseModel):
+    text: str
+    info_types: list[str] = DEFAULT_DEIDENTIFY_INFO_TYPES
+
+
 class TemplateConfig(BaseModel):
     pi_confidence: str = "MEDIUM_AND_ABOVE"
     rai_confidence: str = "MEDIUM_AND_ABOVE"
@@ -358,6 +367,56 @@ async def sanitize_response(req: SanitizeRequest):
         raise HTTPException(status_code=404, detail="Template not found. Call POST /api/setup first.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/deidentify")
+async def deidentify(req: DeidentifyRequest):
+    dlp_client = dlp_v2.DlpServiceClient()
+    start = time.time()
+
+    if not req.info_types:
+        raise HTTPException(status_code=400, detail="At least one info type must be selected")
+    info_types = [{"name": t} for t in req.info_types]
+
+    response = dlp_client.deidentify_content(
+        request=dlp_v2.DeidentifyContentRequest(
+            parent=f"projects/{PROJECT_ID}/locations/global",
+            inspect_config=dlp_v2.InspectConfig(
+                info_types=info_types,
+                min_likelihood=dlp_v2.Likelihood.POSSIBLE,
+            ),
+            deidentify_config=dlp_v2.DeidentifyConfig(
+                info_type_transformations=dlp_v2.InfoTypeTransformations(
+                    transformations=[
+                        dlp_v2.InfoTypeTransformations.InfoTypeTransformation(
+                            info_types=info_types,
+                            primitive_transformation=dlp_v2.PrimitiveTransformation(
+                                replace_with_info_type_config=dlp_v2.ReplaceWithInfoTypeConfig()
+                            ),
+                        )
+                    ]
+                )
+            ),
+            item=dlp_v2.ContentItem(value=req.text),
+        )
+    )
+
+    elapsed_ms = round((time.time() - start) * 1000)
+
+    summary = []
+    if response.overview and response.overview.transformation_summaries:
+        for ts in response.overview.transformation_summaries:
+            summary.append({
+                "info_type": ts.info_type.name if ts.info_type else "UNKNOWN",
+                "count": sum(r.count for r in ts.results),
+            })
+
+    return {
+        "original": req.text,
+        "deidentified": response.item.value,
+        "summary": summary,
+        "elapsed_ms": elapsed_ms,
+    }
 
 
 @app.get("/api/scenarios")
