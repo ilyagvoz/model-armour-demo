@@ -94,7 +94,7 @@ The app includes pre-built attack scenarios you can trigger with one click:
 
 ## Architecture
 
-### De-identification
+### De-identification with Sensitive Data Protection (SDP)
 
 Sensitive Data Protection's `deidentifyContent` API replaces PII inline before the prompt reaches Gemini. Unlike Model Armor's SDP filter — which blocks the entire request — de-identification transforms the text so it remains useful. The built-in `AUSTRALIA_TAX_FILE_NUMBER` and `AUSTRALIA_MEDICARE_NUMBER` detectors validate checksums algorithmically, so only structurally valid numbers are redacted. Setting `min_likelihood: UNLIKELY` allows detection without requiring a label (like `TFN:`) to be present.
 
