@@ -35,6 +35,7 @@ cp .env.example .env
 |----------|-------------|---------|
 | `GCP_PROJECT_ID` | Your GCP project ID | — |
 | `GCP_REGION` | Region where Model Armor is enabled | `australia-southeast2` |
+| `MODEL_ARMOR_REGION` | Override region for eval suite (use `us` for Gemini Enterprise templates) | falls back to `GCP_REGION` |
 | `MODEL_ARMOR_TEMPLATE_ID` | Template name for the demo | `demo-template` |
 | `PORT` | Server port | `5610` |
 | `LLM_REGION` | Region for Gemini API (Full Pipeline mode) | `us-central1` |
@@ -112,6 +113,106 @@ Model Armor acts as a security gateway for every LLM request. A single template 
 ![Model Armor architecture showing Option 1 (custom FastAPI stack) and Option 2 (Gemini Enterprise with multiple services sharing a centralised template)](docs/model-armor-architecture.png)
 
 > **Note:** This pattern applies to any server-side application that owns the Vertex AI API call. It does **not** apply to Gemini for Google Workspace (Gmail, Docs, Sheets), where Google controls the infrastructure.
+
+---
+
+## Evals
+
+The `evals/` folder contains a CLI evaluation suite for systematically comparing Model Armor template configurations and measuring their precision/recall trade-offs.
+
+| File | Purpose |
+|------|---------|
+| `evals/eval_cases.py` | 38 labelled test cases and 4 named config presets |
+| `evals/eval_suite.py` | CLI runner — creates temp templates, calls the API, outputs metrics |
+| `evals/run_evals.sh` | Interactive wizard — guided prompts for all options |
+
+### Test cases
+
+38 labeled cases across three categories:
+
+| Category | Count | Purpose |
+|----------|-------|---------|
+| **good** | 13 | Legitimate enterprise prompts that must never be blocked (business writing, security education, public figures, historical topics, Australian government workflows) |
+| **bad** | 14 | Malicious inputs that must always be blocked (prompt injections, jailbreaks, real PII, credentials, malicious URLs, hate speech) |
+| **edge** | 11 | Ambiguous but legitimate prompts that should pass — false-positive canaries (security research, clinical queries, fiction with dark themes, regulatory content, fake TFN that fails checksum) |
+
+### Config presets
+
+| Preset | PI & Jailbreak | URI | RAI | SDP |
+|--------|---------------|-----|-----|-----|
+| `strict` | MEDIUM_AND_ABOVE | ✓ | all 4 × MEDIUM | 14 types incl. PERSON_NAME |
+| `moderate` | MEDIUM_AND_ABOVE | ✓ | all 4 × HIGH | credentials only |
+| `permissive` | disabled | ✗ | SEXUALLY_EXPLICIT × MEDIUM only | none |
+| `prompt-only` | MEDIUM_AND_ABOVE | ✓ | all 4 × MEDIUM | 13 types excl. PERSON_NAME |
+
+### Usage
+
+**Quickstart — interactive wizard:**
+
+```bash
+./evals/run_evals.sh
+```
+
+The wizard walks you through mode, preset selection, category/direction filters, output format, and an optional save path — then shows an estimated runtime and the exact command before running.
+
+**Direct CLI:**
+
+```bash
+# Run a named preset (creates a temporary template, runs all 38 cases, deletes it)
+python evals/eval_suite.py --config moderate
+
+# Compare all presets side-by-side with a recommendation
+python evals/eval_suite.py --compare strict,moderate,permissive,prompt-only
+
+# Test edge cases against an already-deployed template
+python evals/eval_suite.py --template demo-template-prompt --category edge
+
+# Response-direction cases only
+python evals/eval_suite.py --config strict --direction response
+
+# Save results to JSON
+python evals/eval_suite.py --compare strict,moderate --output json --save results.json
+```
+
+### Sample output
+
+Running a comparison across all four presets produces a ranked table with a config recommendation:
+
+```
+$ python evals/eval_suite.py --compare strict,moderate,permissive,prompt-only --region us
+
+                              Config Comparison
+┌────────────────┬──────┬──────┬──────┬──────┬────────────┬──────────┬─────────┬─────────────┐
+│ Config         │   TP │   TN │   FP │   FN │  Precision │   Recall │      F1 │  FP on Good │
+├────────────────┼──────┼──────┼──────┼──────┼────────────┼──────────┼─────────┼─────────────┤
+│ strict         │   11 │   22 │    2 │    3 │      0.846 │    0.786 │   0.815 │           1 │
+│ moderate       │   11 │   24 │    0 │    3 │      1.000 │    0.786 │   0.880 │           0 │
+│ permissive     │    1 │   24 │    0 │   13 │      1.000 │    0.071 │   0.133 │           0 │
+│ prompt-only    │   11 │   23 │    1 │    3 │      0.917 │    0.786 │   0.846 │           0 │
+└────────────────┴──────┴──────┴──────┴──────┴────────────┴──────────┴─────────┴─────────────┘
+
+→ Recommendation: moderate — highest F1 (0.880) with zero false positives on legitimate content.
+```
+
+Key findings from this run:
+- **`strict`** over-blocked — 2 false positives including 1 on a legitimate business prompt (`FP on Good: 1`), driven by the `PERSON_NAME` SDP info type catching mentions of public figures
+- **`moderate`** hit the sweet spot — zero false positives with the highest F1 score, using credentials-only SDP and RAI filters raised to `HIGH`
+- **`permissive`** left most threats through — only 1 true positive across 14 bad cases
+- **`prompt-only`** (mirrors the Gemini Enterprise prompt template) was close but still had 1 FP
+
+The `FP on Good` column is the most business-critical metric: a false positive on a legitimate enterprise query means a user gets blocked doing normal work.
+
+### Region requirement
+
+Templates deployed for **Gemini Enterprise** must be in the `us` multi-region. Set `MODEL_ARMOR_REGION=us` in your `.env` (already set if you copied `.env.example`) or pass `--region us` on the command line when targeting those templates.
+
+```bash
+# Uses MODEL_ARMOR_REGION from .env automatically
+python evals/eval_suite.py --template demo-template-prompt --category edge
+
+# Or override explicitly
+python evals/eval_suite.py --template demo-template-prompt --category edge --region us
+```
 
 ---
 
